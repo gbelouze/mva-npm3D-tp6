@@ -1,0 +1,43 @@
+[tool.poetry]
+name = "TP6"
+version = "0.1.0"
+description = "Code for the homework 6 of the MVA course 'Nuages de points et modélisation 3D'"
+authors = ["Gabriel Belouze <gabriel.belouze@ens.psl.eu>"]
+readme = "README.md"
+license = "MIT"
+packages = [
+    { include = "tp6", from = "src" }
+]
+
+[tool.poetry.dependencies]
+python = ">=3.8,<3.11"
+numpy = ">=1.20.3"
+matplotlib = ">=3.4.2"
+click = "^8.0.3"
+ipykernel = "^6.9.1"
+torch = "^1.10.2"
+scipy = "^1.8.0"
+torchvision = "^0.11.3"
+tqdm = "^4.62.3"
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+
+[tool.black]
+line-length = 88
+include = '\.pyi?$'
+exclude = '''
+/(
+    \.eggs
+  | \.git
+  | \.hg
+  | \.mypy_cache
+  | \.venv
+  | _build
+  | buck-out
+  | build
+  | dist
+)/
+'''
