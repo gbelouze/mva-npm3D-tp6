@@ -128,7 +128,7 @@ def pointnet_full_loss(outputs, labels, m3x3, alpha=0.001):
     return criterion(outputs, labels) + alpha * (torch.norm(diff3x3)) / float(bs)
 
 
-def train(model, device, train_loader, test_loader=None, epochs=250):
+def train(model, device, train_loader, test_loader=None, epochs=250, with_tnet=False):
     optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
     scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=20, gamma=0.5)
     loss = 0
@@ -140,10 +140,12 @@ def train(model, device, train_loader, test_loader=None, epochs=250):
                     "category"
                 ].to(device)
                 optimizer.zero_grad()
-                # outputs = model(inputs.transpose(1, 2))
-                outputs, m3x3 = model(inputs.transpose(1, 2))
-                # loss = basic_loss(outputs, labels)
-                loss = pointnet_full_loss(outputs, labels, m3x3)
+                if with_tnet:
+                    outputs, m3x3 = model(inputs.transpose(1, 2))
+                    loss = pointnet_full_loss(outputs, labels, m3x3)
+                else:
+                    outputs = model(inputs.transpose(1, 2))
+                    loss = basic_loss(outputs, labels)
                 loss.backward()
                 optimizer.step()
                 pbar.update(1)
@@ -156,8 +158,11 @@ def train(model, device, train_loader, test_loader=None, epochs=250):
                         inputs, labels = data["pointcloud"].to(device).float(), data[
                             "category"
                         ].to(device)
-                        # outputs = model(inputs.transpose(1, 2))
-                        outputs, __ = model(inputs.transpose(1, 2))
+                        if with_tnet:
+                            outputs, __ = model(inputs.transpose(1, 2))
+                        else:
+                            outputs = model(inputs.transpose(1, 2))
+
                         _, predicted = torch.max(outputs.data, 1)
                         total += labels.size(0)
                         correct += (predicted == labels).sum().item()
