@@ -142,7 +142,7 @@ def _in_notebook():
     return True
 
 
-def _train_out_notebook(
+def _train_in_notebook(
     model, device, train_loader, test_loader=None, epochs=250, with_tnet=False
 ):
     optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
@@ -172,7 +172,7 @@ def _train_out_notebook(
         scheduler.step()
 
 
-def _train_in_notebook(
+def _train_out_notebook(
     model, device, train_loader, test_loader=None, epochs=250, with_tnet=False
 ):
     optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
