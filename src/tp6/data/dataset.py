@@ -85,7 +85,7 @@ class PointCloudData(Dataset):
             for file in new_dir.iterdir():
                 if file.suffix == ".ply":
                     sample = {
-                        "ply_path": (new_dir / file).resolve(),
+                        "ply_path": file.resolve(),
                         "category": category,
                     }
                     self.files.append(sample)
