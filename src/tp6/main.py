@@ -13,25 +13,8 @@ from tp6.models.pointnet import test as test_model
 from tp6.models.pointnet import train as train_model
 
 
-@click.group()
-def cli():
-    pass
-
-
-@cli.command()
-@click.argument(
-    "load_path", type=click.Path(exists=True, path_type=Path, dir_okay=False)
-)
-@click.option(
-    "-d",
-    "--data-dir",
-    "--data",
-    default=paths.small_data_dir,
-    type=click.Path(exists=True, path_type=Path),
-    help="Data folder to use.",
-)
-def test(load_path, data_dir):
-    model = torch.load(load_path)
+def test(load_from, data_dir):
+    model = torch.load(load_from)
     test_ds = PointCloudData(data_dir, folder="test")
     test_loader = DataLoader(dataset=test_ds, batch_size=32)
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -41,30 +24,7 @@ def test(load_path, data_dir):
     rprint(f"[blue]Test accuracy[/] : {val_acc:.2f}%")
 
 
-@cli.command()
-@click.option(
-    "-d",
-    "--data-dir",
-    "--data",
-    default=paths.small_data_dir,
-    type=click.Path(exists=True, path_type=Path),
-    help="Data folder to use.",
-)
-@click.option(
-    "-m",
-    "--model-type",
-    default="BASIC",
-    type=click.Choice(["MLP", "BASIC", "FULL"], case_sensitive=False),
-    help="Architecture to use.",
-)
-@click.option("-e", "--epochs", default=25, help="Number of epochs.")
-@click.option(
-    "-o",
-    "--save-to",
-    type=click.Path(path_type=Path, dir_okay=False),
-    help="Path to save the trained model to.",
-)
-def train(data_dir, model_type, epochs, save_to):
+def train(data_dir, model_type="BASIC", epochs=25, save_to=None):
     """Train and save a 3D neural network."""
 
     rprint(f"Loading data from [blue]{data_dir.name}[/]")
@@ -119,8 +79,53 @@ def train(data_dir, model_type, epochs, save_to):
         torch.save(model.state_dict(), out.resolve())
 
 
-if __name__ == "__main__":
+@click.group()
+def cli():
+    pass
 
-    t0 = time.time()
+
+@cli.command(name="test")
+@click.argument(
+    "load_from", type=click.Path(exists=True, path_type=Path, dir_okay=False)
+)
+@click.option(
+    "-d",
+    "--data-dir",
+    "--data",
+    default=paths.small_data_dir,
+    type=click.Path(exists=True, path_type=Path),
+    help="Data folder to use.",
+)
+def test_command(load_from, data_dir):
+    test(load_from, data_dir)
+
+
+@cli.command(name="train")
+@click.option(
+    "-d",
+    "--data-dir",
+    "--data",
+    default=paths.small_data_dir,
+    type=click.Path(exists=True, path_type=Path),
+    help="Data folder to use.",
+)
+@click.option(
+    "-m",
+    "--model-type",
+    default="BASIC",
+    type=click.Choice(["MLP", "BASIC", "FULL"], case_sensitive=False),
+    help="Architecture to use.",
+)
+@click.option("-e", "--epochs", default=25, help="Number of epochs.")
+@click.option(
+    "-o",
+    "--save-to",
+    type=click.Path(path_type=Path, dir_okay=False),
+    help="Path to save the trained model to.",
+)
+def train_command(data_dir, model_type, epochs, save_to):
+    train(data_dir, model_type, epochs, save_to)
+
+
+if __name__ == "__main__":
     cli()
-    rprint(f"Total time for training : [cyan]{time.time() - t0}[/]s")

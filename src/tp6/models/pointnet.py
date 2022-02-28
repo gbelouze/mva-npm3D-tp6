@@ -219,7 +219,7 @@ def _train_out_notebook(
                 val_acc = test(model, device, test_loader, with_tnet=with_tnet)
                 progress.update(
                     epochs_progress,
-                    description=f"[cyan]Training...[blue] Loss = {loss:.3f}[/][magenta] Test accuracy = {val_acc:.1f}",
+                    description=f"[cyan]Training...[blue] Loss = {loss:.3f}[/][magenta] Test accuracy = {val_acc:.1f}%",
                 )
 
             scheduler.step()
