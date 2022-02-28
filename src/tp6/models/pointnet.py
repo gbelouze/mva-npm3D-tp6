@@ -2,6 +2,7 @@ import torch  # type: ignore
 import torch.nn as nn  # type: ignore
 import torch.nn.functional as F  # type: ignore
 from rich.progress import Progress
+from tqdm import tqdm
 
 
 class PointMLP(nn.Module):
@@ -128,7 +129,52 @@ def pointnet_full_loss(outputs, labels, m3x3, alpha=0.001):
     return criterion(outputs, labels) + alpha * (torch.norm(diff3x3)) / float(bs)
 
 
-def train(model, device, train_loader, test_loader=None, epochs=250, with_tnet=False):
+def _in_notebook():
+    try:
+        from IPython import get_ipython
+
+        if "IPKernelApp" not in get_ipython().config:  # pragma: no cover
+            return False
+    except ImportError:
+        return False
+    except AttributeError:
+        return False
+    return True
+
+
+def _train_out_notebook(
+    model, device, train_loader, test_loader=None, epochs=250, with_tnet=False
+):
+    optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
+    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=20, gamma=0.5)
+    loss = 0
+
+    for epoch in tqdm(range(epochs)):
+        model.train()
+        for i, data in enumerate(train_loader, 0):
+            inputs, labels = data["pointcloud"].to(device).float(), data["category"].to(
+                device
+            )
+            optimizer.zero_grad()
+            if with_tnet:
+                outputs, m3x3 = model(inputs.transpose(1, 2))
+                loss = pointnet_full_loss(outputs, labels, m3x3)
+            else:
+                outputs = model(inputs.transpose(1, 2))
+                loss = basic_loss(outputs, labels)
+            loss.backward()
+            optimizer.step()
+
+        if test_loader:
+            val_acc = test(model, device, test_loader, with_tnet=with_tnet)
+            tqdm.write(f"Loss = {loss:.3f} | Test accuracy = {val_acc:.1f}")
+
+        scheduler.step()
+
+
+def _train_in_notebook(
+    model, device, train_loader, test_loader=None, epochs=250, with_tnet=False
+):
     optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
     scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=20, gamma=0.5)
     loss = 0
@@ -174,6 +220,13 @@ def train(model, device, train_loader, test_loader=None, epochs=250, with_tnet=F
 
             scheduler.step()
             progress.update(epochs_progress, advance=1)
+
+
+def train(*args, **kwargs):
+    if _in_notebook():
+        return _train_in_notebook(*args, **kwargs)
+    else:
+        return _train_out_notebook(*args, **kwargs)
 
 
 def test(model, device, test_loader, with_tnet=False):
