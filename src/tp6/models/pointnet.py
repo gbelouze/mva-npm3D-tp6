@@ -1,7 +1,7 @@
 import torch  # type: ignore
 import torch.nn as nn  # type: ignore
 import torch.nn.functional as F  # type: ignore
-from tqdm import tqdm  # type: ignore
+from rich.progress import Progress
 
 
 class PointMLP(nn.Module):
@@ -132,9 +132,24 @@ def train(model, device, train_loader, test_loader=None, epochs=250, with_tnet=F
     optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
     scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=20, gamma=0.5)
     loss = 0
-    with tqdm(total=epochs * len(train_loader)) as pbar:
+    with Progress(transient=True) as progress:
+        if test_loader:
+            epochs_progress = progress.add_task(
+                "[cyan]Training...[blue] Loss = ?    [/][magenta] Test accuracy = ?    ",
+                total=epochs,
+            )
+        else:
+            epochs_progress = progress.add_task("[cyan]Training...", total=epochs)
+        train_progress = progress.add_task(
+            f"[cyan]Epoch {0}/{epochs}...", total=len(train_loader)
+        )
         for epoch in range(epochs):
             model.train()
+            progress.update(
+                train_progress,
+                completed=0,
+                description=f"[cyan]Epoch {epoch+1}/{epochs}...",
+            )
             for i, data in enumerate(train_loader, 0):
                 inputs, labels = data["pointcloud"].to(device).float(), data[
                     "category"
@@ -148,28 +163,34 @@ def train(model, device, train_loader, test_loader=None, epochs=250, with_tnet=F
                     loss = basic_loss(outputs, labels)
                 loss.backward()
                 optimizer.step()
-                pbar.update(1)
+                progress.update(train_progress, advance=1)
 
-            model.eval()
-            correct = total = 0
             if test_loader:
-                with torch.no_grad():
-                    for data in test_loader:
-                        inputs, labels = data["pointcloud"].to(device).float(), data[
-                            "category"
-                        ].to(device)
-                        if with_tnet:
-                            outputs, __ = model(inputs.transpose(1, 2))
-                        else:
-                            outputs = model(inputs.transpose(1, 2))
-
-                        _, predicted = torch.max(outputs.data, 1)
-                        total += labels.size(0)
-                        correct += (predicted == labels).sum().item()
-                val_acc = 100.0 * correct / total
-                tqdm.write(
-                    f"Epoch: {epoch + 1}, Loss: {loss:.3f}, Test accuracy: {val_acc:.1f} %"
+                val_acc = test(model, device, test_loader, with_tnet=with_tnet)
+                progress.update(
+                    epochs_progress,
+                    description=f"[cyan]Training...[blue] Loss = {loss:.3f}[/][magenta] Test accuracy = {val_acc:.1f}",
                 )
 
             scheduler.step()
-        pbar.update(1)
+            progress.update(epochs_progress, advance=1)
+
+
+def test(model, device, test_loader, with_tnet=False):
+    model.eval()
+    correct = total = 0
+    with torch.no_grad():
+        for data in test_loader:
+            inputs, labels = data["pointcloud"].to(device).float(), data["category"].to(
+                device
+            )
+            if with_tnet:
+                outputs, __ = model(inputs.transpose(1, 2))
+            else:
+                outputs = model(inputs.transpose(1, 2))
+
+            _, predicted = torch.max(outputs.data, 1)
+            total += labels.size(0)
+            correct += (predicted == labels).sum().item()
+    val_acc = 100.0 * correct / total
+    return val_acc

@@ -8,15 +8,46 @@ import tp6.data.paths as paths
 from rich import print as rprint
 from torch.utils.data import DataLoader  # type: ignore
 from tp6.data.dataset import PointCloudData
-from tp6.models.pointnet import PointMLP, PointNetBasic, PointNetFull, train
+from tp6.models.pointnet import PointMLP, PointNetBasic, PointNetFull
+from tp6.models.pointnet import test as test_model
+from tp6.models.pointnet import train as train_model
 
 
-@click.command()
+@click.group()
+def cli():
+    pass
+
+
+@cli.command()
+@click.argument(
+    "load_path", type=click.Path(exists=True, path_type=Path, dir_okay=False)
+)
 @click.option(
     "-d",
+    "--data-dir",
     "--data",
     default=paths.small_data_dir,
-    type=click.Path(exists=True),
+    type=click.Path(exists=True, path_type=Path),
+    help="Data folder to use.",
+)
+def test(load_path, data_dir):
+    model = torch.load(load_path)
+    test_ds = PointCloudData(data_dir, folder="test")
+    test_loader = DataLoader(dataset=test_ds, batch_size=32)
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    with_tnet = isinstance(model, PointNetFull)
+
+    val_acc = test_model(model, device, test_loader, with_tnet=with_tnet)
+    rprint(f"[blue]Test accuracy[/] : {val_acc:.2f}%")
+
+
+@cli.command()
+@click.option(
+    "-d",
+    "--data-dir",
+    "--data",
+    default=paths.small_data_dir,
+    type=click.Path(exists=True, path_type=Path),
     help="Data folder to use.",
 )
 @click.option(
@@ -27,9 +58,15 @@ from tp6.models.pointnet import PointMLP, PointNetBasic, PointNetFull, train
     help="Architecture to use.",
 )
 @click.option("-e", "--epochs", default=25, help="Number of epochs.")
-def cli(data, model_type, epochs):
+@click.option(
+    "-o",
+    "--save-to",
+    type=click.Path(path_type=Path, dir_okay=False),
+    help="Path to save the trained model to.",
+)
+def train(data_dir, model_type, epochs, save_to):
+    """Train and save a 3D neural network."""
 
-    data_dir = Path(data)
     rprint(f"Loading data from [blue]{data_dir.name}[/]")
     train_ds = PointCloudData(data_dir)
     test_ds = PointCloudData(data_dir, folder="test")
@@ -65,7 +102,7 @@ def cli(data, model_type, epochs):
     cpu = "[red strike]cpu[/]" if torch.cuda.is_available() else "[green]cpu[/]"
     rprint(f"Device:\t{cuda}\t{cpu}")
 
-    train(
+    train_model(
         model,
         device,
         train_loader,
@@ -73,6 +110,13 @@ def cli(data, model_type, epochs):
         epochs=epochs,
         with_tnet=(model_type == "FULL"),
     )
+    if save_to is not None:
+        if str(save_to) == save_to.name:
+            out = paths.trained_dir / save_to.name
+        else:
+            save_to.parent.mkdir(parents=True)
+            out = save_to
+        torch.save(model.state_dict(), out.resolve())
 
 
 if __name__ == "__main__":
