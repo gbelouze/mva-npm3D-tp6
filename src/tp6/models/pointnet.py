@@ -149,27 +149,31 @@ def _train_in_notebook(
     scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=20, gamma=0.5)
     loss = 0
 
-    for epoch in tqdm(range(epochs)):
-        model.train()
-        for i, data in enumerate(train_loader, 0):
-            inputs, labels = data["pointcloud"].to(device).float(), data["category"].to(
-                device
-            )
-            optimizer.zero_grad()
-            if with_tnet:
-                outputs, m3x3 = model(inputs.transpose(1, 2))
-                loss = pointnet_full_loss(outputs, labels, m3x3)
-            else:
-                outputs = model(inputs.transpose(1, 2))
-                loss = basic_loss(outputs, labels)
-            loss.backward()
-            optimizer.step()
+    with tqdm(total=epochs * len(train_loader)) as pbar:
+        for epoch in range(epochs):
+            model.train()
+            for i, data in enumerate(train_loader, 0):
+                inputs, labels = data["pointcloud"].to(device).float(), data[
+                    "category"
+                ].to(device)
+                optimizer.zero_grad()
+                if with_tnet:
+                    outputs, m3x3 = model(inputs.transpose(1, 2))
+                    loss = pointnet_full_loss(outputs, labels, m3x3)
+                else:
+                    outputs = model(inputs.transpose(1, 2))
+                    loss = basic_loss(outputs, labels)
+                loss.backward()
+                optimizer.step()
 
-        if test_loader:
-            val_acc = test(model, device, test_loader, with_tnet=with_tnet)
-            tqdm.write(f"Loss = {loss:.3f} | Test accuracy = {val_acc:.1f}")
+                pbar.update(1)
 
-        scheduler.step()
+            if test_loader:
+                val_acc = test(model, device, test_loader, with_tnet=with_tnet)
+                tqdm.write(f"Loss = {loss:.3f} | Test accuracy = {val_acc:.1f}")
+
+            scheduler.step()
+            pbar.update(1)
 
 
 def _train_out_notebook(
